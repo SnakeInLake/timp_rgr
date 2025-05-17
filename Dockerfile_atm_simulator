@@ -1,0 +1,14 @@
+# Dockerfile_atm_simulator
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements_simulator.txt .
+RUN pip install --no-cache-dir -r requirements_simulator.txt
+
+COPY atm_simulator.py .
+
+# ATM_ID_IN_DB и API_BASE_URL будут передаваться как переменные окружения
+# при запуске контейнера через docker-compose
+
+CMD ["python", "atm_simulator.py"]

@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: lab4_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - atm_network
+
+  backend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: lab4_backend
+    ports:
+      - "8000:8000" # Оставляем, если нужно для прямого доступа к API для тестов, но основной доступ через Nginx
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      VALID_ATM_API_KEYS: ${ATM_SIMULATOR_API_KEY}
+    depends_on:
+      - postgres
+    networks:
+      - atm_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lab4_frontend
+    ports:
+      - "5173:443"  # Маппим порт 5173 хоста на порт 443 контейнера (HTTPS)
+      - "5174:80"   # Опционально: маппим порт 5174 хоста на порт 80 контейнера (для проверки редиректа HTTP->HTTPS)
+    # Если ты скопировал ssl_certs в корень проекта, а не в frontend/ssl_certs:
+    # volumes:
+    #   - ./ssl_certs:/etc/nginx/ssl:ro # Монтируем сертификаты в контейнер (read-only)
+    depends_on:
+      - backend
+    networks:
+      - atm_network
+
+  atm_simulator_1:
+    build:
+      context: ./
+      dockerfile: Dockerfile_atm_simulator
+    image: snakeinlake/atm-simulator:latest
+    container_name: atm_simulator_001
+    environment:
+      API_BASE_URL: "http://backend:8000/api/v1"
+      ATM_ID_IN_DB: "1"
+      SIMULATOR_API_KEY: ${ATM_SIMULATOR_API_KEY}
+    depends_on:
+      - backend
+    networks:
+      - atm_network
+    restart: on-failure
+
+  atm_simulator_2:
+    build:
+      context: .
+      dockerfile: Dockerfile_atm_simulator
+    image: snakeinlake/atm-simulator:latest
+    container_name: atm_simulator_002
+    environment:
+      API_BASE_URL: "http://backend:8000/api/v1"
+      ATM_ID_IN_DB: "2"
+      SIMULATOR_API_KEY: ${ATM_SIMULATOR_API_KEY}
+    depends_on:
+      - backend
+    networks:
+      - atm_network
+    restart: on-failure
+
+networks:
+  atm_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
